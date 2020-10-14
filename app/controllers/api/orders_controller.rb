@@ -1,7 +1,7 @@
 require 'net/http'
 
 module Api
-    class OrdersController < ApplicationController
+    class OrdersController < ActionController::API
         STATES = {
             "Acre": "AC",
             "Alagoas": "AL",
@@ -33,40 +33,40 @@ module Api
         }
 
         def handle
-            created_at = DateTime.parse(handle_params[:date_created])
-            subTotal = handle_params[:total_amount]
-            deliveryFee = handle_params[:total_shipping]
-            total = handle_params[:total_amount_with_shipping]
-            total_shipping = handle_params[:total_shipping]
+            created_at = DateTime.parse(handle_params[0])
+            subTotal = handle_params[1]
+            deliveryFee = handle_params[2]
+            total = handle_params[3]
+            total_shipping = handle_params[2]
             parse  = {
-                externalCode: handle_params[:id].to_s,
-                storeId: handle_params[:store_id],
+                externalCode: handle_params[4].to_s,
+                storeId: handle_params[5],
                 subTotal: '%.2f' % subTotal,
                 deliveryFee: '%.2f' % deliveryFee,
                 total: '%.2f' % total,
-                country: handle_params[:shipping][:receiver_address][:country][:id],
-                state: STATES[handle_params[:shipping][:receiver_address][:state][:name].to_sym],
+                country: handle_params[6][:receiver_address][:country][:id],
+                state: STATES[handle_params[6][:receiver_address][:state][:name].to_sym],
                 total_shipping: '%.2f' % total_shipping,
-                city: handle_params[:shipping][:receiver_address][:city][:name],
-                district: handle_params[:shipping][:receiver_address][:neighborhood][:name],
-                street: handle_params[:shipping][:receiver_address][:street_name],
-                complement: handle_params[:shipping][:receiver_address][:comment],
-                latitude: handle_params[:shipping][:receiver_address][:latitude],
-                longitude: handle_params[:shipping][:receiver_address][:longitude],
+                city: handle_params[6][:receiver_address][:city][:name],
+                district: handle_params[6][:receiver_address][:neighborhood][:name],
+                street: handle_params[6][:receiver_address][:street_name],
+                complement: handle_params[6][:receiver_address][:comment],
+                latitude: handle_params[6][:receiver_address][:latitude],
+                longitude: handle_params[6][:receiver_address][:longitude],
                 dtOrderCreate: created_at.new_offset("+00:00").strftime("%Y-%m-%dT%H:%M:%S.%LZ"),
-                postalCode: handle_params[:shipping][:receiver_address][:zip_code],
-                number: handle_params[:shipping][:receiver_address][:street_number],
+                postalCode: handle_params[6][:receiver_address][:zip_code],
+                number: handle_params[6][:receiver_address][:street_number],
                 customer: {
-                    externalCode: handle_params[:buyer][:id].to_s,
-                    name: handle_params[:buyer][:nickname],
-                    email:  handle_params[:buyer][:email],
-                    contact:  handle_params[:buyer][:phone][:area_code].to_s + handle_params[:buyer][:phone][:number],
+                    externalCode: handle_params[7][:id].to_s,
+                    name: handle_params[7][:nickname],
+                    email:  handle_params[7][:email],
+                    contact:  handle_params[7][:phone][:area_code].to_s + handle_params[7][:phone][:number],
                 },
                 items: [],
                 payments: []
             }
 
-            for item in handle_params[:order_items]
+            for item in handle_params[8]
                 parse[:items].append({
                     externalCode: item[:item][:id],
                     name: item[:item][:title],
@@ -77,7 +77,7 @@ module Api
                 })
             end
 
-            for payment in handle_params[:payments]
+            for payment in handle_params[9]
                 parse[:payments].append({
                     type: payment[:payment_type],
                     value: payment[:total_paid_amount]
@@ -106,12 +106,27 @@ module Api
 
             render json: ret, status: response.code
         rescue StandardError => e
-            print e
+            ret = {
+                message: e
+            }
+
+            render json: ret, status: 400
         end
 
         private
         def handle_params
-            params.permit!
+            params.require([
+                :date_created,
+                :total_amount,
+                :total_shipping,
+                :total_amount_with_shipping,
+                :id,
+                :store_id,
+                :shipping,
+                :buyer,
+                :order_items,
+                :payments
+            ])
         end
     end
 end
